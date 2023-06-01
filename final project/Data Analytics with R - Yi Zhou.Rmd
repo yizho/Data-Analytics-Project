@@ -1,0 +1,342 @@
+---
+title: "Data Analytics with R"
+author: "Yi Zhou"
+date: "5/10/2021"
+output: 
+    pdf_document:
+        number_sections: true
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+## DO NOT CHANGE THESE OPTIONS
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(dev = "png")
+knitr::opts_chunk$set(dpi = 100)
+set.seed(1)
+```
+
+
+# Preface
+
+**This document is a brief demonstration of my data analytics techniques using R. For non-technical audiences, I've added some explanations for some of the statistical and programming terms. In each section, its questions and findings are placed at the beginning.**
+
+**Since this is not an oral presentation, I've explained my thoughts and findings in detail to avoid confusion. Please let me know if you have any questions about this demonstration. I'd be happy to explain more.**
+
+# Introduction
+
+**Question: What role does age play in the relationship between one's income and one's satisfaction level with his/her financial condition?**
+
+**Main finding: More income would indicate more satisfaction with one's financial situation. This effect gets larger as age increases. The number of children also matters in this relationship for middle-aged and very old people. My result is significant only when we are studying fully-employed people.**
+
+As we all know, if you are doing a business or selling a product, it is crucial to know your customers' income levels. Information about customers' income levels can help companies in various ways, including targeting their markets, improving their services, establishing marketing plans, and pricing. The research paper https://www.sciencedirect.com/science/article/pii/S0140673613624174 is also an example that demonstrates the importance of people's income information. 
+
+In addition to income information, knowing if the customers are satisfied with their financial situation is also essential. For example, customers with different levels of confidence in their financial conditions would most likely be interested in different types of financial products. 
+
+Usually, income is a good predictor of people's confidence/satisfaction level of their financial conditions. Many studies have shown that more income would indicate a higher satisfaction level with one's financial condition. However, not every researcher has considered the effect of age on this relationship. With this extra information, companies can better target their customer groups and further improve their marketing plans. In this project, I am going to study the role of age in the relationship between one's income and one's satisfaction level with his/her financial condition.
+
+# Methods and materials
+
+```{r}
+library(foreign)
+library(data.table)
+library(ggplot2)
+```
+
+```{r}
+gss = read.dta("GSS2016.dta")
+gss = data.table(gss)
+#gss
+gss_subset = gss[, .(sex = as.numeric(sex == "male"),
+degree = as.numeric(degree),
+work = as.numeric(wrkstat),
+marital = as.numeric(marital),
+age,
+age_decade = as.factor(floor(age / 10)),
+race = as.numeric(race == "white"),
+hispanic = as.numeric(hispanic != "hispanic"),
+attend = as.numeric(attend), ## code as ordinal
+educ,
+income = as.numeric(income16), ## code as ordinal
+srcbelt = as.numeric(srcbelt == "other rural"),
+happy = as.numeric(happy),
+satfin = as.numeric(satfin),
+childs
+)]
+## remove rows that are all NA
+gss_subset = na.omit(gss_subset)
+#head(gss_subset)
+```
+
+To explore this topic, we need a dataset that contains information  about subjects' age, income level, and satisfaction level with his/her financial condition. Our dataset also needs to include control variables, such as gender, mental health, education level, marital status, and so on. In addition, to ensure the internal validity of our study, we need to make sure that our dataset accounts for confounding variables. (In statistics, a confounder is a variable that influences both the dependent variable and independent variable, causing a spurious association.) 
+
+After careful consideration, I decided to use a subset of the **GSS 2016 Dataset**. The General Social Survey (GSS) dataset monitors societal change and studies the growing complexity of American society. It contains more than 5000 variables with data on a wide range of subjects. The GSS Data Explorer, from NORC at the University of Chicago, can be found here: https://gssdataexplorer.norc.org/
+
+Let's take a look at some important variables:
+
+*satfin(response):* Satisfaction with financial situation
+
+Questions asked to the subjects in this dataset:
+A. We are interested in how people are getting along financially these days. So far as you and your family are concerned, would you say that you are pretty well satisfied with your present financial situation, more or less satisfied, or not satisfied at all?
+
+A value of 1 means "satisfied." A value of 2 means "more or less satisfied." A value of 3 means "not at all satisfied."
+
+*work(named wrkstat in the original dataset):* Labor force status
+
+Questions asked to the subjects in this dataset:
+Last week were you working full time, part time, going to school, keeping house, or what?
+
+A value of 1 means working full time. A value of 2 means working part time. A value of 3 means not working at the time(temp). A value of 4 means unemployed. A value of 5 means retired. A value of 6 means in school. A value of 7 means keeping house.
+
+*age:* age
+
+*age_decade:* decade of age. For example, a value of 5 means 50-60 years old.
+
+*income:(named income16 in the original dataset)* Total family income
+
+Please refer to this link for detailed information https://gssdataexplorer.norc.org/variables/6167/vshow A value of 1 indicates an annual family income of under 1000 dollars. A value of 26 indicates an annual family income of over 170000 dollars.  Basically, a higher value indicates a higher annual family income.
+
+*childs:* Number of children
+
+Other variables are control variables. 
+
+I have fitted 4 linear models in this project. The first one will use gss_subset as the dataset. Others will use subsets of gss_subset based on different values of the variable work. In my models, I used satfin as the response variable; age, childs, work, income as response variables (some of these four will also serve as control variables in some of my models); others as control variables. Interactions between variables will be included. I will use ggplots to visualize my results. I've printed 6 rows of my dataset gss_subset. I've also printed some distributions of the important variables.
+
+```{r}
+head(gss_subset)
+table(gss_subset$work)
+table(gss_subset$satfin)
+table(gss_subset$childs)
+table(gss_subset$income)
+table(gss_subset$age_decade)
+```
+
+
+# Results 
+
+## Analysis 1 
+
+**Question: What role does age play in the relationship between one's income and one's satisfaction level of his/her financial condition?**
+
+**Finding: More income would indicate more satisfaction with one's financial situation. This effect gets larger as age increases.**
+
+This analysis wants to answer the question: What role does age play in the relationship between one's income and one's satisfaction level with his/her financial condition?
+
+**Model:**
+
+```{r}
+fit1 = lm(satfin ~ work + sex + marital + income + degree + educ + age + childs+
+            happy + srcbelt + attend + race + hispanic + age*income,data = gss_subset)
+summary(fit1)
+```
+
+A quick note to explain how we interpret the summary above(for non-technical audiences):
+The summary contains information about the model we fitted above. In the coefficients section, we can determine if a variable is significant by looking at its p-value, specifically the Pr(>|t|) column. In null-hypothesis significance testing, the p-value is the probability of obtaining test results at least as extreme as the result actually observed, under the assumption that the null hypothesis is correct. The null hypothesis is that the observed difference is due to chance alone. Typically, a p-value of 5% or less is a good cut-off point, meaning that the variables with p-values less than 0.05 are significant. For example, the variable work has a p-value of 0.038957, which means that if the variable work does not have any influence on our response variable, satfin, the possibility that we obtain test results at least as extreme as the result actually observed is less than 3.9%. Therefore, we conclude a relationship between the variables work and satfin. The work variable is statistically significant in our model.
+
+More information about the interpretation of the output can be found here: https://feliperego.github.io/blog/2015/10/23/Interpreting-Model-Output-In-R
+
+Now back to our analysis. I've fitted a model with satfin as the response and other variables as the predictors and control variables. I've also included the interaction term income*age in my model. Our interaction term is significant. This interaction term will help us directly answer the research question by showing how income interact with age when predicting one's satisfaction level of his/her financial condition. Also, note that work and childs are significant, we will explore them in future analysis. Now let's visualize our model and see what we can find.
+
+**Visualization:**
+
+```{r}
+viz_1 = gss_subset[, .(income,satfin = predict(fit1,newdata = gss_subset,type = "response"),age_decade)]
+
+ggplot(data = viz_1) +
+aes(x = income, y = satfin, color = age_decade) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+ylab("satisfied with financial condition or not") +
+xlab("income")
+```
+```{r}
+subsettest = gss_subset[,.(income,age,satfin = predict(fit1, newdata = gss_subset),age_decade)]
+ggplot(data = subsettest) +
+aes(x = income, y = satfin, color = age_decade) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+ylab("satisfied with financial condition or not") +
+xlab("income")
+```
+
+
+
+
+```{r}
+ggplot(data = gss_subset,colors = class) + aes (x = income, y = satfin, color = age_decade) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+plot(gss_subset$age ~ gss_subset$income, xlab = "age", ylab = "income")
+```
+
+```{r}
+# declaring the data to plot
+x<-1:10
+y=x^1/2
+z= x^2
+  
+# plotting x and y coordinate 
+# line 
+plot(x, y, col="blue")
+  
+# adding another line on the
+# coordinates involving y and z
+lines(z, y ,col="red")
+  
+# Adding a legend to the graph
+# defining the lines 
+legend(x = "topleft", legend = c("Equation 1", "Equation 2"), 
+       fill = c("blue","red")
+)
+```
+
+
+
+Note that a higher value in satfin indicates less satisfaction. As you can see from the plot, More income would indicate more satisfaction with one's financial situation. Also, we notice that there is a difference in slopes for different age decades. The absolute value in slope increases as age increases, meaning that the effect of income on satfin gets larger as age increases. In analysis 2 and analysis 3, I will explore why this difference in slope(effect) exists. 
+
+## Analysis 2
+
+**Question: Could the difference in effects be explained by different employment situations?**
+
+**Finding: The difference in effect for different age groups is not explained by different employment statuses. Our analysis is only significant when the subject is working full-time.**
+
+In analysis one, we discovered that more income would indicate more satisfaction with one's financial situation. This effect gets larger as age increases. One possible explanation is that this relation is influenced by different employment statuses. For example, it is possible that some old people are more easily satisfied with their financial condition because they are retired. However, given the same family income, an old person that is still working full time may not be satisfied with their financial condition. Therefore, it is possible that the differences in the effects for different age groups could be caused by changes in employment status. The effect gets larger because as age increases, more people have become retired, and thus have become satisfied with their financial condition. In this analysis, I want to test this explanation.
+
+I want to analyze the following question: Could the difference in effects be explained by different employment situations?
+
+This analysis will help me better understand my analysis 1 results by testing a possible explanation. It could also potentially help me modify my dataset so that my analysis 1 stays significant.
+
+**Models:**
+
+```{r}
+subset_fulltime <- gss_subset[ which(work==1),]
+#subset_fulltime
+fit2 = lm(satfin ~ work + sex + marital + income + degree + educ + age + childs+
+            happy + srcbelt + attend + race + hispanic + age*income,data = subset_fulltime)
+summary(fit2)
+```
+
+I've subsetted my dataset so that only fully-employed people are involved. Then, I fitted the same model using the new dataset to see if the result is different. As you can see from the summary above, the interaction term is still significant.
+
+```{r}
+subset_retired <- gss_subset[ which(work==5),]
+#subset_retired
+fitretire = lm(satfin ~ work + sex + marital + income + degree + educ + age + childs+
+            happy + srcbelt + attend + race + hispanic + age*income,data = subset_retired)
+summary(fitretire)
+```
+
+This is another subset of my original dataset(gss_subset). This dataset only includes people that have retired. Now we fit the same model using this dataset. As you can see from the summary, the interaction term is no longer significant in this model. For other values in the work variable, I don't think there are enough observations for the models/analysis to be significant. Therefore, I conclude that our result in analysis 1 is only significant when we are considering fully-employed people.
+
+**Visualizations:**
+
+```{r}
+viz_2 = subset_fulltime[, .(income,
+satfin = predict(fit2,
+newdata = subset_fulltime,
+type = "response"),
+age_decade)]
+ggplot(data = viz_2) +
+aes(x = income, y = satfin, color = age_decade) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+ylab("satisfied with financial condition or not") +
+xlab("income")
+```
+
+As you can see, the plot has changed a little bit compared to the one in our first analysis. However, the general trend stayed the same. More income would indicate more satisfaction with one's financial situation. This effect gets larger as age increases. Therefore, we reject the explanation I proposed in this analysis. We conclude that the difference in effect for different age groups is not explained by different employment statuses. Our analysis is only significant when the subject is working full-time.
+
+```{r}
+viz_retire = subset_retired[, .(income,
+satfin = predict(fitretire,
+newdata = subset_retired,
+type = "response"),
+age_decade)]
+
+ggplot(data = viz_retire) +
+aes(x = income, y = satfin, color = age_decade) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+ylab("satisfied with financial condition or not") +
+xlab("income")
+```
+
+The interaction term for the retired model is not significant. I just want to use this graph to show that the interaction term is indeed not significant in this model. We are not drawing conclusions from this graph.
+
+## Analysis 3
+
+**Question: Does interaction between the number of children and age/income play an important role in the relationship between income and the satisfaction level with one's financial condition?**
+
+**Answer: The interaction between the number of children and age does play an important role in predicting the satisfaction level with one's financial condition. As the number of children increases, it becomes harder for middle-aged and very old people to be satisfied with their financial condition.**
+
+We have shown that the difference in effect is not explained by different employment statuses. Now we want to propose an alternative explanation for the result of analysis 1. So technically, analysis 3 is more related to analysis 1 and it is not closely related to analysis 2. I hope this is fine. I know it's not exactly what the rubric asked for, but since we rejected the explanation in analysis 2, it is natural that we propose another explanation. Analysis 2 did contribute a lot by finding a proper subset in which our analysis is significant.
+
+The variable childs have been significant in both models in the previous two analyses. It is possible that the number of children also plays an important role in our analysis. Its interaction with age or income could also be significant. For example, it is possible that having children will result in a higher standard for one's financial situation. When people grow old, that standard may have dropped to normal because their children are now able to take care of themselves. In this analysis, we will test this explanation.
+
+We want to answer the following question in this analysis: Does interaction between the number of children and age/income play an important role in our analysis?
+
+**Model:**
+
+```{r}
+fit3 = lm(satfin ~ work + sex + marital + income + degree + educ + age + childs+
+            happy + srcbelt + attend + race + hispanic + childs*age + age*income + childs*income,data = subset_fulltime)
+summary(fit3)
+```
+
+I've included three interaction terms in this model, age:childs, age:income, and income:childs. The first two interaction terms are significant, meaning that the result in analysis 1 holds and the proposed explanation in analysis 3 could be true. Let's take a look at the plots. 
+
+**Visualizations:**
+
+```{r}
+viz_full1 = subset_fulltime[, .(income,
+satfin = predict(fit3,
+newdata = subset_fulltime,
+type = "response"),
+age_decade)]
+
+ggplot(data = viz_full1) +
+aes(x = income, y = satfin, color = age_decade) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+ylab("satisfied with financial condition or not") +
+xlab("income")
+
+```
+
+The plot about the interaction term income*age yields similar results as before, which is good.
+
+```{r}
+viz_full2 = subset_fulltime[, .(childs,
+satfin = predict(fit3,
+newdata = subset_fulltime,
+type = "response"),
+age_decade)]
+
+ggplot(data = viz_full2) +
+aes(x = childs, y = satfin, color = age_decade) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+ylab("satisfied with financial condition or not") +
+xlab("number of children")
+```
+
+This is the plot about the interaction term childs*age. As you can see from the plot, as the number of children increases, it becomes harder for middle-aged and very old people to be satisfied with their financial condition while the number of children does not matter that much for people between 40-69 years old.(Absolute value of the slopes are smaller. The slope even becomes negative for people in their 60s.) Therefore, we conclude that the interaction between the number of children and age does play an important role in predicting the satisfaction level of one's financial condition. As the number of children increases, it becomes harder(need more income) for middle-aged(or younger) and very old people to be satisfied with their financial condition.
+
+# Discussion
+
+
+**Conclusion: More income would indicate more satisfaction with one's financial situation. This effect gets larger as age increases. The number of children also matters in this relationship for middle-aged and very old people. My result is significant only when we are studying fully-employed people.**
+
+Combining the three analyses, my answer to the initial research question would be:
+More income would indicate more satisfaction with one's financial situation. This effect gets larger as age increases. The number of children also matters in this relationship for middle-aged and very old people. My result is significant only when we are studying fully-employed people.
+
+Let me summarize how I've arrived at this conclusion. To explore the role of age in the relationship between one's income and one's satisfaction level with his/her financial situation, I fitted a model that uses income to predict satisfaction and included an interaction term age*income. From the interaction term, I found out that the positive effect of income on satisfaction gets larger as age increases. Then, I proposed a possible explanation: Is it possible that this effect that age has results from changes in employment statuses? After testing, I found out that this explanation does not stand. I also found out that our results are only significant when we are considering fully-employed people. Thus, I subsetted the dataset. After the explanation was rejected, I proposed an alternative explanation for analysis 3: Is it possible that this effect that age has results from interactions between age and number of children? After fitting a model with more interaction terms, I found out that the term age:childs is indeed significant, meaning that our alternative explanation could stand. 
+
+I would say that my answer could be useful for companies and salesmen. I found out that the positive effect of income on satisfaction gets larger as age increases. This indicates that among people with high family income, a higher age would probably indicate a higher probability of being satisfied with their financial condition. This should be a piece of useful information in business. For example, if I was a salesman that sold financial products, I might want to offer a product that helps secure my customer's money(low risk, relatively-low return) if I notice that my customer is rich and old. Also, it might also be helpful to know if my customer has any children. Middle-aged people with kids might prefer products with lower risks because they have responsibilities to their children. (I'm sure real salesmen know much better than I do. I'm just providing a situation where this study could be useful.)
+
+# References:
+
+https://www.sciencedirect.com/science/article/pii/S0140673613624174
+
+https://gssdataexplorer.norc.org/
+
+
+
